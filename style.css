@@ -1,0 +1,173 @@
+body {
+    margin: 0;
+    overflow-x: hidden;
+    font-family: 'Inter', sans-serif;
+    background-color: #454040; /* Dark Gray Base */
+    color: #e2e8f0;
+    -webkit-tap-highlight-color: transparent; 
+}
+
+/* 3D Canvas Background */
+#webgl-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -1; 
+    pointer-events: none; 
+}
+
+/* Glassmorphism Panels */
+.glass-panel {
+    background: rgba(96, 91, 81, 0.45);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(216, 211, 101, 0.15);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+    border-radius: 1.5rem; 
+    position: relative;
+}
+@media (min-width: 768px) { .glass-panel { border-radius: 1.75rem; } }
+.glass-panel:hover {
+    border-color: rgba(216, 211, 101, 0.35);
+    background: rgba(96, 91, 81, 0.65);
+}
+
+/* 3D Tilt Effect */
+.tilt-panel {
+    transform-style: preserve-3d;
+    transform: perspective(1000px);
+    will-change: transform;
+}
+.tilt-panel canvas, .tilt-content {
+    transform: translateZ(30px);
+    filter: drop-shadow(0px 10px 15px rgba(0,0,0,0.4));
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(216, 211, 101, 0.25); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(216, 211, 101, 0.5); }
+
+/* Form Controls */
+input, select {
+    background: rgba(69, 64, 64, 0.6);
+    border: 1px solid rgba(216, 211, 101, 0.2);
+    color: white;
+    appearance: none; 
+}
+input:focus, select:focus {
+    outline: none;
+    border-color: #E6F082;
+    background: rgba(96, 91, 81, 0.4);
+    box-shadow: 0 0 0 4px rgba(230, 240, 130, 0.2);
+}
+option { background-color: #454040; color: white; }
+
+/* Landing Page Animations */
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up {
+    animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    opacity: 0;
+}
+.delay-100 { animation-delay: 100ms; }
+.delay-200 { animation-delay: 200ms; }
+.delay-300 { animation-delay: 300ms; }
+.delay-500 { animation-delay: 500ms; }
+
+/* Loader Overlay */
+#loader-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background-color: #454040;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+#loader-overlay.active {
+    opacity: 1;
+    pointer-events: all;
+}
+
+/* User Provided Loader - Adjusted for theme */
+.loader {
+    position: relative;
+    font-size: 16px;
+    width: 5.5em;
+    height: 5.5em;
+}
+.loader:before {
+    content: '';
+    position: absolute;
+    transform: translate(-50%, -50%) rotate(45deg);
+    height: 100%;
+    width: 4px;
+    background: #605B51; /* Muted theme line */
+    left: 50%;
+    top: 50%;
+}
+.loader:after {
+    content: '';
+    position: absolute;
+    left: 0.2em;
+    bottom: 0.18em;
+    width: 1em;
+    height: 1em;
+    background-color: #E6F082; /* Lime Theme Block */
+    border-radius: 15%;
+    animation: rollingRock 2.5s cubic-bezier(.79, 0, .47, .97) infinite;
+    box-shadow: 0 0 15px rgba(230, 240, 130, 0.5); /* Glow effect */
+}
+
+@keyframes rollingRock {
+    0% { transform: translate(0, -1em) rotate(-45deg) }
+    5% { transform: translate(0, -1em) rotate(-50deg) }
+    20% { transform: translate(1em, -2em) rotate(47deg) }
+    25% { transform: translate(1em, -2em) rotate(45deg) }
+    30% { transform: translate(1em, -2em) rotate(40deg) }
+    45% { transform: translate(2em, -3em) rotate(137deg) }
+    50% { transform: translate(2em, -3em) rotate(135deg) }
+    55% { transform: translate(2em, -3em) rotate(130deg) }
+    70% { transform: translate(3em, -4em) rotate(217deg) }
+    75% { transform: translate(3em, -4em) rotate(220deg) }
+    100% { transform: translate(0, -1em) rotate(-225deg) }
+}
+
+/* Hero Rolling Text Effect */
+.words-wrapper {
+    display: inline-block;
+    vertical-align: bottom;
+    height: 1.1em;
+    overflow: hidden;
+    position: relative;
+    padding: 0 0.1em;
+    margin-left: -0.1em;
+    /* Natural transparency blend without blocking the 3D background */
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%);
+    mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%);
+}
+.rolling-word {
+    display: block;
+    height: 100%;
+    line-height: 1.1em;
+    animation: spin_words 6s infinite;
+}
+@keyframes spin_words {
+    10% { transform: translateY(-102%); }
+    25% { transform: translateY(-100%); }
+    35% { transform: translateY(-202%); }
+    50% { transform: translateY(-200%); }
+    60% { transform: translateY(-302%); }
+    75% { transform: translateY(-300%); }
+    85% { transform: translateY(-402%); }
+    100% { transform: translateY(-400%); }
+}

@@ -1,0 +1,1751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>EXPFLOW | Immersive Expense Tracker</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- jsPDF & AutoTable for PDF Generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+    <!-- Import Map for Three.js & Postprocessing -->
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://esm.sh/three@0.143.0",
+          "postprocessing": "https://esm.sh/postprocessing@6.29.3?deps=three@0.143.0"
+        }
+      }
+    </script>
+
+    <!-- Font Awesome for Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts: Saira Stencil One -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Saira+Stencil+One&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            margin: 0;
+            overflow-x: hidden;
+            font-family: 'Inter', sans-serif;
+            background-color: #454040; /* Dark Gray Base */
+            color: #e2e8f0;
+            -webkit-tap-highlight-color: transparent; 
+        }
+
+        /* 3D Canvas Background */
+        #webgl-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1; 
+            pointer-events: none; 
+        }
+
+        /* Glassmorphism Panels */
+        .glass-panel {
+            background: rgba(96, 91, 81, 0.45);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(216, 211, 101, 0.15);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            border-radius: 1.5rem; 
+            position: relative;
+        }
+        @media (min-width: 768px) { .glass-panel { border-radius: 1.75rem; } }
+        .glass-panel:hover {
+            border-color: rgba(216, 211, 101, 0.35);
+            background: rgba(96, 91, 81, 0.65);
+        }
+
+        /* 3D Tilt Effect */
+        .tilt-panel {
+            transform-style: preserve-3d;
+            transform: perspective(1000px);
+            will-change: transform;
+        }
+        .tilt-panel canvas, .tilt-content {
+            transform: translateZ(30px);
+            filter: drop-shadow(0px 10px 15px rgba(0,0,0,0.4));
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(216, 211, 101, 0.25); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(216, 211, 101, 0.5); }
+
+        /* Form Controls */
+        input, select {
+            background: rgba(69, 64, 64, 0.6);
+            border: 1px solid rgba(216, 211, 101, 0.2);
+            color: white;
+            appearance: none; 
+        }
+        input:focus, select:focus {
+            outline: none;
+            border-color: #E6F082;
+            background: rgba(96, 91, 81, 0.4);
+            box-shadow: 0 0 0 4px rgba(230, 240, 130, 0.2);
+        }
+        option { background-color: #454040; color: white; }
+
+        /* Landing Page Animations */
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in-up {
+            animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            opacity: 0;
+        }
+        .delay-100 { animation-delay: 100ms; }
+        .delay-200 { animation-delay: 200ms; }
+        .delay-300 { animation-delay: 300ms; }
+        .delay-500 { animation-delay: 500ms; }
+
+        /* Loader Overlay */
+        #loader-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 99999;
+            background-color: #454040;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+        #loader-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        /* User Provided Loader - Adjusted for theme */
+        .loader {
+            position: relative;
+            font-size: 16px;
+            width: 5.5em;
+            height: 5.5em;
+        }
+        .loader:before {
+            content: '';
+            position: absolute;
+            transform: translate(-50%, -50%) rotate(45deg);
+            height: 100%;
+            width: 4px;
+            background: #605B51; /* Muted theme line */
+            left: 50%;
+            top: 50%;
+        }
+        .loader:after {
+            content: '';
+            position: absolute;
+            left: 0.2em;
+            bottom: 0.18em;
+            width: 1em;
+            height: 1em;
+            background-color: #E6F082; /* Lime Theme Block */
+            border-radius: 15%;
+            animation: rollingRock 2.5s cubic-bezier(.79, 0, .47, .97) infinite;
+            box-shadow: 0 0 15px rgba(230, 240, 130, 0.5); /* Glow effect */
+        }
+
+        @keyframes rollingRock {
+            0% { transform: translate(0, -1em) rotate(-45deg) }
+            5% { transform: translate(0, -1em) rotate(-50deg) }
+            20% { transform: translate(1em, -2em) rotate(47deg) }
+            25% { transform: translate(1em, -2em) rotate(45deg) }
+            30% { transform: translate(1em, -2em) rotate(40deg) }
+            45% { transform: translate(2em, -3em) rotate(137deg) }
+            50% { transform: translate(2em, -3em) rotate(135deg) }
+            55% { transform: translate(2em, -3em) rotate(130deg) }
+            70% { transform: translate(3em, -4em) rotate(217deg) }
+            75% { transform: translate(3em, -4em) rotate(220deg) }
+            100% { transform: translate(0, -1em) rotate(-225deg) }
+        }
+
+        /* Hero Rolling Text Effect */
+        .words-wrapper {
+            display: inline-block;
+            vertical-align: bottom;
+            height: 1.1em;
+            overflow: hidden;
+            position: relative;
+            padding: 0 0.1em;
+            margin-left: -0.1em;
+            /* Natural transparency blend without blocking the 3D background */
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%);
+            mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 80%, transparent 100%);
+        }
+        .rolling-word {
+            display: block;
+            height: 100%;
+            line-height: 1.1em;
+            animation: spin_words 6s infinite;
+        }
+        @keyframes spin_words {
+            10% { transform: translateY(-102%); }
+            25% { transform: translateY(-100%); }
+            35% { transform: translateY(-202%); }
+            50% { transform: translateY(-200%); }
+            60% { transform: translateY(-302%); }
+            75% { transform: translateY(-300%); }
+            85% { transform: translateY(-402%); }
+            100% { transform: translateY(-400%); }
+        }
+    </style>
+</head>
+<body class="antialiased min-h-screen flex flex-col items-center">
+
+    <!-- Loader Overlay -->
+    <div id="loader-overlay">
+        <div class="loader"></div>
+    </div>
+
+    <!-- Three.js Hyperspeed Background -->
+    <div id="webgl-container"></div>
+
+    <!-- ========================================== -->
+    <!-- SHARED HEADER (Home & Features)            -->
+    <!-- ========================================== -->
+    <header id="shared-header" class="fixed top-4 sm:top-6 left-1/2 -translate-x-1/2 z-50 w-[95%] max-w-6xl border border-[#D8D365]/20 bg-[#454040]/70 backdrop-blur-xl rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.4)] transition-all">
+        <nav class="flex h-16 sm:h-20 w-full items-center justify-between px-4 md:px-6">
+            <!-- Logo -->
+            <div class="flex items-center gap-2 sm:gap-3 cursor-pointer group" onclick="showHomePage()">
+                <div class="text-[#D8D365] transition-transform group-hover:scale-105">
+                    <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" class="w-8 h-8 md:w-10 md:h-10">
+                        <defs>
+                            <clipPath id="leafClipNav">
+                                <path d="M 50 3.5 C 90 20, 90 80, 50 96.5 C 10 80, 10 20, 50 3.5 Z" />
+                            </clipPath>
+                        </defs>
+                        <g clip-path="url(#leafClipNav)">
+                            <line x1="50" y1="0" x2="50" y2="20" /><line x1="0" y1="20" x2="100" y2="20" /><line x1="50" y1="20" x2="50" y2="44" /><line x1="50" y1="32" x2="100" y2="32" /><line x1="50" y1="44" x2="100" y2="44" /><line x1="28" y1="20" x2="28" y2="44" /><line x1="0" y1="32" x2="28" y2="32" />
+                            <line x1="50" y1="100" x2="50" y2="80" /><line x1="0" y1="80" x2="100" y2="80" /><line x1="50" y1="80" x2="50" y2="56" /><line x1="0" y1="68" x2="50" y2="68" /><line x1="0" y1="56" x2="50" y2="56" /><line x1="72" y1="80" x2="72" y2="56" /><line x1="72" y1="68" x2="100" y2="68" />
+                        </g>
+                        <path d="M 50 3.5 C 90 20, 90 80, 50 96.5 C 10 80, 10 20, 50 3.5 Z" fill="none" stroke="currentColor" stroke-width="7" />
+                    </svg>
+                </div>
+                <div class="flex flex-col justify-center">
+                    <span class="text-xl md:text-2xl text-white tracking-[0.15em] leading-tight uppercase font-['Saira_Stencil_One']">EXPFLOW</span>
+                </div>
+            </div>
+
+            <!-- Desktop Nav Links -->
+            <div class="hidden md:flex items-center space-x-8 text-sm font-bold text-slate-300">
+                <a href="#" onclick="showFeaturesPage()" class="hover:text-[#E6F082] transition-colors relative group py-2">
+                    Explore Features
+                    <span class="absolute bottom-0 left-0 w-0 h-0.5 bg-[#E6F082] transition-all group-hover:w-full"></span>
+                </a>
+                <a href="#" onclick="showHomePage()" class="hover:text-[#D8D365] transition-colors relative group py-2">
+                    How it Works
+                    <span class="absolute bottom-0 left-0 w-0 h-0.5 bg-[#D8D365] transition-all group-hover:w-full"></span>
+                </a>
+            </div>
+
+            <!-- CTA Buttons -->
+            <div class="flex items-center gap-3 sm:gap-4">
+                <a href="https://github.com/Rachit-Mohanty" target="_blank" class="hidden sm:flex items-center gap-2 px-3 py-2 text-sm font-bold text-[#D8D365] hover:text-[#E6F082] transition-colors bg-white/5 hover:bg-white/10 rounded-lg">
+                    <i class="fa-brands fa-github text-lg"></i> Star
+                </a>
+                <button id="nav-get-started" class="px-4 sm:px-6 py-2 sm:py-2.5 text-xs sm:text-sm font-bold rounded-lg bg-gradient-to-r from-[#D8D365] to-[#E6F082] text-[#454040] hover:scale-105 transition-all shadow-[0_0_15px_rgba(216,211,101,0.3)]">
+                    Get Started
+                </button>
+            </div>
+        </nav>
+    </header>
+
+    <!-- ========================================== -->
+    <!-- HOME PAGE                                  -->
+    <!-- ========================================== -->
+    <div id="home-page" class="w-full flex flex-col min-h-screen relative z-10 pt-28 sm:pt-32">
+        
+        <!-- Shadcn-Style Hero Section -->
+        <main class="flex-1 flex flex-col items-center justify-center pt-10 pb-16 px-4">
+            
+            <div class="max-w-4xl w-full flex flex-col items-center text-center gap-6 relative z-10">
+                
+                <!-- Badge -->
+                <div class="animate-fade-in-up flex items-center gap-3 rounded-full border border-[#D8D365]/30 bg-[#605B51]/40 px-2 py-1.5 shadow-md backdrop-blur-md">
+                    <div class="rounded-full bg-[#D8D365] px-2 py-0.5">
+                        <p class="font-mono text-[10px] font-bold text-[#454040]">TRACK</p>
+                    </div>
+                    <span class="text-xs font-medium text-slate-200">No sign-up required. Start instantly.</span>
+                    <i class="fa-solid fa-arrow-right text-[10px] text-[#D8D365] mr-2"></i>
+                </div>
+
+                <!-- Typography -->
+                <h1 class="animate-fade-in-up delay-100 text-balance text-5xl leading-[1.1] text-white md:text-6xl lg:text-7xl font-['Saira_Stencil_One'] flex flex-col sm:block items-center">
+                    Master Your Finances with 
+                    <span class="words-wrapper text-[#D8D365] drop-shadow-[0_0_15px_rgba(216,211,101,0.5)]">
+                        <span class="rolling-word">EXPFLOW</span>
+                        <span class="rolling-word text-[#E6F082]">WEALTH</span>
+                        <span class="rolling-word">BUDGETS</span>
+                        <span class="rolling-word text-[#E6F082]">SAVINGS</span>
+                        <span class="rolling-word">EXPFLOW</span>
+                    </span>
+                </h1>
+
+                <p class="animate-fade-in-up delay-200 mt-2 max-w-2xl text-slate-300 text-base sm:text-lg md:text-xl tracking-wide">
+                    Take control of your spending through immersive 3D visualization, advanced analytics, and strategic budgeting.
+                </p>
+
+                <!-- Hero Buttons -->
+                <div class="animate-fade-in-up delay-300 mt-4 flex flex-wrap justify-center gap-4">
+                    <button id="hero-get-started" class="flex items-center gap-2 h-12 rounded-md bg-[#D8D365] px-8 text-base font-bold text-[#454040] hover:bg-[#E6F082] hover:shadow-[0_0_20px_rgba(216,211,101,0.4)] transition-all">
+                        Open Dashboard <i class="fa-solid fa-arrow-right text-sm"></i>
+                    </button>
+                    <button class="flex items-center gap-2 h-12 rounded-md border border-[#D8D365]/30 bg-transparent px-8 text-base font-medium text-[#D8D365] hover:bg-[#D8D365]/10 transition-all">
+                        <i class="fa-solid fa-circle-play"></i> Watch Demo
+                    </button>
+                </div>
+            </div>
+
+            <!-- Hero Image / App Screen Mockup -->
+            <div class="animate-fade-in-up delay-500 relative mt-16 w-full max-w-5xl mx-auto px-2">
+                <!-- Glowing backdrop -->
+                <div class="absolute inset-0 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80%] h-[80%] bg-[#D8D365]/20 blur-[100px] rounded-full pointer-events-none"></div>
+                
+                <div class="relative overflow-hidden rounded-xl border border-white/10 bg-[#454040]/80 p-2 shadow-2xl ring-1 ring-white/5 backdrop-blur-sm">
+                    <img
+                        alt="EXPFLOW Dashboard Interface"
+                        class="aspect-[16/9] w-full rounded-lg object-cover border border-white/5 shadow-inner opacity-90 grayscale-[20%]"
+                        src="https://images.unsplash.com/photo-1551288049-bebda4e38f71?q=80&w=2070&auto=format&fit=crop"
+                    />
+                </div>
+            </div>
+
+            <!-- Features / More Images Showcase -->
+            <section class="animate-fade-in-up delay-500 relative mt-32 w-full max-w-6xl mx-auto px-4 flex flex-col gap-12">
+                <div class="text-center">
+                    <h2 class="text-3xl md:text-4xl font-bold text-white mb-4 tracking-wide">Everything You Need to Track Wealth</h2>
+                    <p class="text-slate-300 max-w-2xl mx-auto">Track your income and expenses with stunning clarity across all your devices, featuring real-time insights and 3D data immersion.</p>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <!-- Feature 1 -->
+                    <div class="relative overflow-hidden rounded-xl border border-white/10 bg-[#454040]/60 p-2 shadow-xl ring-1 ring-white/5 backdrop-blur-sm transform hover:scale-[1.02] transition-transform flex flex-col">
+                        <img src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?q=80&w=1000&auto=format&fit=crop" class="w-full h-48 object-cover rounded-lg grayscale-[30%] opacity-90" alt="Deep Analytics">
+                        <div class="p-4 mt-2">
+                            <h3 class="text-[#D8D365] font-bold text-lg mb-2"><i class="fa-solid fa-chart-pie mr-2"></i>Deep Analytics</h3>
+                            <p class="text-sm text-slate-300">Beautiful bento-grid charts break down your spending habits, helping you make informed financial decisions effortlessly.</p>
+                        </div>
+                    </div>
+                    <!-- Feature 2 -->
+                    <div class="relative overflow-hidden rounded-xl border border-white/10 bg-[#454040]/60 p-2 shadow-xl ring-1 ring-white/5 backdrop-blur-sm transform hover:scale-[1.02] transition-transform flex flex-col">
+                        <img src="https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?q=80&w=1000&auto=format&fit=crop" class="w-full h-48 object-cover rounded-lg grayscale-[30%] opacity-90" alt="Global Currencies">
+                        <div class="p-4 mt-2">
+                            <h3 class="text-[#E6F082] font-bold text-lg mb-2"><i class="fa-solid fa-globe mr-2"></i>Global Currencies</h3>
+                            <p class="text-sm text-slate-300">Traveling or working internationally? Switch between USD, EUR, GBP, INR, and more with a single click.</p>
+                        </div>
+                    </div>
+                    <!-- Feature 3 -->
+                    <div class="relative overflow-hidden rounded-xl border border-white/10 bg-[#454040]/60 p-2 shadow-xl ring-1 ring-white/5 backdrop-blur-sm transform hover:scale-[1.02] transition-transform flex flex-col">
+                        <img src="https://images.unsplash.com/photo-1563013544-824ae1b704d3?q=80&w=1000&auto=format&fit=crop" class="w-full h-48 object-cover rounded-lg grayscale-[30%] opacity-90" alt="Secure Backups">
+                        <div class="p-4 mt-2">
+                            <h3 class="text-[#D8D365] font-bold text-lg mb-2"><i class="fa-solid fa-cloud-arrow-up mr-2"></i>Secure Backups</h3>
+                            <p class="text-sm text-slate-300">Your data stays with you. Easily export your transaction history to a JSON file and restore it whenever you need.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- DETAILED FEATURES PAGE                     -->
+    <!-- ========================================== -->
+    <div id="features-page" class="hidden w-full flex-col min-h-screen relative z-10 pt-32 px-4 pb-20">
+        <div class="max-w-6xl mx-auto w-full flex flex-col gap-16">
+            
+            <div class="text-center animate-fade-in-up">
+                <h1 class="text-4xl md:text-6xl font-extrabold text-white mb-6 tracking-tight">Powerful <span class="text-[#E6F082]">Features</span></h1>
+                <p class="text-slate-300 max-w-2xl mx-auto text-lg md:text-xl leading-relaxed">EXPFLOW combines cutting-edge web technologies with intuitive financial management. No fluff, just pure performance.</p>
+            </div>
+
+            <!-- Detailed Feature 1 -->
+            <div class="glass-panel p-8 md:p-12 flex flex-col md:flex-row gap-10 items-center animate-fade-in-up delay-100">
+                <div class="flex-1 flex justify-center order-2 md:order-1">
+                    <div class="relative w-full max-w-sm aspect-square bg-[#454040] rounded-2xl border border-[#D8D365]/30 shadow-[0_0_40px_rgba(216,211,101,0.2)] flex items-center justify-center overflow-hidden">
+                        <i class="fa-solid fa-cube text-9xl text-[#D8D365] opacity-80 animate-pulse"></i>
+                        <div class="absolute inset-0 bg-gradient-to-tr from-[#D8D365]/10 to-transparent"></div>
+                    </div>
+                </div>
+                <div class="flex-1 order-1 md:order-2">
+                    <div class="inline-block px-3 py-1 mb-4 rounded-full bg-[#E6F082]/20 border border-[#E6F082]/30 text-[#E6F082] text-xs font-bold tracking-widest uppercase">Immersion</div>
+                    <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">3D Hyperspeed Environment</h2>
+                    <p class="text-slate-300 text-lg leading-relaxed mb-6">Built natively on <strong>WebGL and Three.js</strong>, our backgrounds aren't just static videos or heavy GIFs. They are real-time rendered, hardware-accelerated 3D environments that react to your interactions, providing a truly modern desktop app feel in your browser.</p>
+                    <ul class="space-y-3 text-slate-300">
+                        <li><i class="fa-solid fa-check text-[#D8D365] mr-2"></i> GPU Accelerated Rendering</li>
+                        <li><i class="fa-solid fa-check text-[#D8D365] mr-2"></i> Interactive Camera Parallax</li>
+                        <li><i class="fa-solid fa-check text-[#D8D365] mr-2"></i> Custom Post-Processing Bloom</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Detailed Feature 2 -->
+            <div class="glass-panel p-8 md:p-12 flex flex-col md:flex-row gap-10 items-center animate-fade-in-up delay-200">
+                <div class="flex-1">
+                    <div class="inline-block px-3 py-1 mb-4 rounded-full bg-[#D8D365]/20 border border-[#D8D365]/30 text-[#D8D365] text-xs font-bold tracking-widest uppercase">Intelligence</div>
+                    <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">Smart Bento Analytics</h2>
+                    <p class="text-slate-300 text-lg leading-relaxed mb-6">See your money from every angle with our responsive <strong>Bento Grid Dashboard</strong>. Utilizing Chart.js, we break down your expenses into beautifully animated pie charts and dynamically scaling bar graphs that track your daily, monthly, and yearly cash flow.</p>
+                    <ul class="space-y-3 text-slate-300">
+                        <li><i class="fa-solid fa-check text-[#E6F082] mr-2"></i> 1-Click Time Filtering (Day/Month/Year)</li>
+                        <li><i class="fa-solid fa-check text-[#E6F082] mr-2"></i> Auto-Scaling Chart Layouts</li>
+                        <li><i class="fa-solid fa-check text-[#E6F082] mr-2"></i> Custom Tooltips & Formatting</li>
+                    </ul>
+                </div>
+                <div class="flex-1 flex justify-center">
+                    <div class="relative w-full max-w-sm aspect-square bg-[#454040] rounded-2xl border border-[#E6F082]/30 shadow-[0_0_40px_rgba(230,240,130,0.2)] flex items-center justify-center overflow-hidden">
+                        <i class="fa-solid fa-chart-pie text-9xl text-[#E6F082] opacity-80 hover:rotate-12 transition-transform duration-500"></i>
+                        <div class="absolute inset-0 bg-gradient-to-bl from-[#E6F082]/10 to-transparent"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detailed Feature 3 -->
+            <div class="glass-panel p-8 md:p-12 flex flex-col md:flex-row gap-10 items-center animate-fade-in-up delay-300">
+                <div class="flex-1 flex justify-center order-2 md:order-1">
+                    <div class="relative w-full max-w-sm aspect-square bg-[#454040] rounded-2xl border border-[#D8D365]/30 shadow-[0_0_40px_rgba(216,211,101,0.2)] flex items-center justify-center overflow-hidden">
+                        <i class="fa-solid fa-shield-halved text-9xl text-[#D8D365] opacity-80 hover:-translate-y-2 transition-transform duration-500"></i>
+                        <div class="absolute inset-0 bg-gradient-to-tr from-[#D8D365]/10 to-transparent"></div>
+                    </div>
+                </div>
+                <div class="flex-1 order-1 md:order-2">
+                    <div class="inline-block px-3 py-1 mb-4 rounded-full bg-[#E6F082]/20 border border-[#E6F082]/30 text-[#E6F082] text-xs font-bold tracking-widest uppercase">Security</div>
+                    <h2 class="text-3xl md:text-4xl font-bold text-white mb-4">Total Data Privacy</h2>
+                    <p class="text-slate-300 text-lg leading-relaxed mb-6">No sign-ups. No external databases mining your spending habits. EXPFLOW runs <strong>100% locally</strong> in your browser utilizing HTML5 LocalStorage. Need to move devices? Just use our robust 1-click JSON Backup and Restore engine.</p>
+                    <ul class="space-y-3 text-slate-300">
+                        <li><i class="fa-solid fa-check text-[#D8D365] mr-2"></i> Zero Tracking & Zero Accounts</li>
+                        <li><i class="fa-solid fa-check text-[#D8D365] mr-2"></i> Instant JSON Data Export</li>
+                        <li><i class="fa-solid fa-check text-[#D8D365] mr-2"></i> Cross-Device Portability</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Start Now CTA inside Features -->
+            <div class="text-center mt-8 animate-fade-in-up delay-500">
+                <button onclick="showDashboard()" class="px-8 py-4 text-lg font-bold rounded-xl bg-gradient-to-r from-[#D8D365] to-[#E6F082] text-[#454040] hover:scale-105 transition-all shadow-[0_0_20px_rgba(216,211,101,0.5)]">
+                    Launch Dashboard Now
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- DASHBOARD PAGE (Bento Grid)                -->
+    <!-- ========================================== -->
+    <div id="dashboard-page" class="hidden max-w-[85rem] w-full grid-cols-1 md:grid-cols-2 xl:grid-cols-4 auto-rows-min gap-4 md:gap-6 relative z-10 py-4 px-3 sm:py-8 sm:px-6 lg:px-8">
+        
+        <!-- 1. Bento Box: Header & Balance -->
+        <header class="glass-panel p-5 md:p-8 xl:col-span-2 md:col-span-2 flex flex-col justify-between tilt-panel transition-all">
+            <div class="tilt-content flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div class="flex items-center space-x-3 md:space-x-5 cursor-pointer hover:opacity-80 transition-opacity" onclick="showHomePage()" title="Back to Home Page">
+                    <!-- Custom EXPFLOW Geometric Logo -->
+                    <div class="text-[#D8D365] flex-shrink-0 drop-shadow-md">
+                        <svg viewBox="0 0 100 100" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" class="w-10 h-10 md:w-12 md:h-12">
+                            <defs>
+                                <clipPath id="leafClipDash">
+                                    <path d="M 50 3.5 C 90 20, 90 80, 50 96.5 C 10 80, 10 20, 50 3.5 Z" />
+                                </clipPath>
+                            </defs>
+                            <g clip-path="url(#leafClipDash)">
+                                <line x1="50" y1="0" x2="50" y2="20" /><line x1="0" y1="20" x2="100" y2="20" /><line x1="50" y1="20" x2="50" y2="44" /><line x1="50" y1="32" x2="100" y2="32" /><line x1="50" y1="44" x2="100" y2="44" /><line x1="28" y1="20" x2="28" y2="44" /><line x1="0" y1="32" x2="28" y2="32" />
+                                <line x1="50" y1="100" x2="50" y2="80" /><line x1="0" y1="80" x2="100" y2="80" /><line x1="50" y1="80" x2="50" y2="56" /><line x1="0" y1="68" x2="50" y2="68" /><line x1="0" y1="56" x2="50" y2="56" /><line x1="72" y1="80" x2="72" y2="56" /><line x1="72" y1="68" x2="100" y2="68" />
+                            <line x1="72" y1="80" x2="72" y2="56" /><line x1="72" y1="68" x2="100" y2="68" />
+                        </g>
+                        <path d="M 50 3.5 C 90 20, 90 80, 50 96.5 C 10 80, 10 20, 50 3.5 Z" fill="none" stroke="currentColor" stroke-width="7" />
+                    </svg>
+                </div>
+
+                <div class="flex flex-col justify-center">
+                    <h1 class="text-2xl md:text-3xl text-white tracking-[0.15em] leading-tight uppercase font-['Saira_Stencil_One']">EXPFLOW</h1>
+                    <p class="text-[10px] md:text-[11px] text-[#D8D365] font-bold tracking-[0.25em] uppercase mt-0.5 ml-0.5 font-sans">Since 2026</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center space-x-2 w-full sm:w-auto justify-end">
+                    <!-- Home Button -->
+                    <button onclick="showHomePage()" class="px-3 py-2 bg-[#D8D365]/20 hover:bg-[#D8D365]/30 rounded-full border border-[#D8D365]/20 text-xs font-bold text-[#D8D365] transition-all flex items-center shadow-sm" title="Go to Home Page">
+                        <i class="fa-solid fa-house sm:mr-1.5"></i> <span class="hidden sm:inline">Home</span>
+                    </button>
+
+                    <!-- Currency Selector -->
+                    <div class="relative flex-1 sm:flex-none">
+                        <select id="currency-selector" class="w-full sm:w-auto bg-[#454040]/80 border border-[#D8D365]/20 text-slate-200 text-xs rounded-full px-4 py-2 pr-8 focus:outline-none focus:ring-1 focus:ring-[#E6F082] cursor-pointer">
+                            <option value="USD">USD ($)</option>
+                            <option value="EUR">EUR (€)</option>
+                            <option value="GBP">GBP (£)</option>
+                            <option value="INR">INR (₹)</option>
+                            <option value="JPY">JPY (¥)</option>
+                            <option value="AUD">AUD (A$)</option>
+                            <option value="CAD">CAD (C$)</option>
+                            <option value="SGD">SGD (S$)</option>
+                            <option value="CHF">CHF (₣)</option>
+                            <option value="ZAR">ZAR (R)</option>
+                            <option value="BRL">BRL (R$)</option>
+                            <option value="MXN">MXN ($)</option>
+                            <option value="AED">AED (د.إ)</option>
+                        </select>
+                        <i class="fa-solid fa-chevron-down absolute right-3 top-1/2 transform -translate-y-1/2 text-[10px] text-[#D8D365] pointer-events-none"></i>
+                    </div>
+                    <div class="px-3 py-2 bg-white/5 rounded-full border border-[#D8D365]/20 text-xs font-medium text-white flex items-center shadow-sm">
+                        <i class="fa-solid fa-cloud text-[#D8D365] mr-1.5"></i> <span class="hidden sm:inline">Synced</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="tilt-content mt-6 sm:mt-10 md:mt-12">
+                <p class="text-xs md:text-sm text-slate-300 uppercase tracking-wider font-semibold mb-1">Total Balance</p>
+                <h2 id="total-balance" class="text-4xl md:text-5xl lg:text-6xl font-bold text-white tracking-tighter truncate">0.00</h2>
+            </div>
+        </header>
+
+        <!-- 2. Bento Box: Total Income -->
+        <div class="glass-panel p-5 md:p-8 xl:col-span-1 md:col-span-1 flex flex-col justify-center overflow-hidden tilt-panel transition-all group">
+            <i class="fa-solid fa-arrow-trend-up absolute -right-6 -bottom-6 text-7xl md:text-8xl opacity-10 text-[#D8D365] group-hover:scale-110 transition-transform duration-500"></i>
+            <div class="tilt-content">
+                <div class="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-[#D8D365]/20 flex items-center justify-center text-[#D8D365] mb-4 md:mb-5 border border-[#D8D365]/30">
+                    <i class="fa-solid fa-arrow-trend-up text-lg md:text-xl"></i>
+                </div>
+                <p class="text-xs md:text-sm text-slate-300 uppercase tracking-wider font-medium">Total Income</p>
+                <p id="total-income" class="text-2xl md:text-3xl font-bold text-[#D8D365] mt-1 tracking-tight truncate">0.00</p>
+            </div>
+        </div>
+
+        <!-- 3. Bento Box: Total Expense -->
+        <div class="glass-panel p-5 md:p-8 xl:col-span-1 md:col-span-1 flex flex-col justify-center overflow-hidden tilt-panel transition-all group">
+            <i class="fa-solid fa-arrow-trend-down absolute -right-6 -bottom-6 text-7xl md:text-8xl opacity-10 text-[#E6F082] group-hover:scale-110 transition-transform duration-500"></i>
+            <div class="tilt-content">
+                <div class="w-10 h-10 md:w-12 md:h-12 rounded-xl md:rounded-2xl bg-[#E6F082]/20 flex items-center justify-center text-[#E6F082] mb-4 md:mb-5 border border-[#E6F082]/30">
+                    <i class="fa-solid fa-arrow-trend-down text-lg md:text-xl"></i>
+                </div>
+                <p class="text-xs md:text-sm text-slate-300 uppercase tracking-wider font-medium">Total Expense</p>
+                <p id="total-expense" class="text-2xl md:text-3xl font-bold text-[#E6F082] mt-1 tracking-tight truncate">0.00</p>
+            </div>
+        </div>
+
+        <!-- 4. Bento Box: Add Transaction Form -->
+        <div class="glass-panel p-5 md:p-7 xl:col-span-1 xl:row-span-2 md:col-span-2 flex flex-col transition-all">
+            <h3 class="text-base md:text-lg font-semibold mb-4 md:mb-6 flex items-center text-white"><i class="fa-solid fa-plus mr-2.5 text-[#D8D365]"></i>New Entry</h3>
+            
+            <form id="transaction-form" class="space-y-4 md:space-y-5 flex-1 flex flex-col">
+                <div>
+                    <label class="block text-[10px] md:text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5 md:mb-2">Type</label>
+                    <select id="type" class="w-full p-3 md:p-3.5 rounded-xl transition-all text-sm font-medium" required>
+                        <option value="expense">Expense</option>
+                        <option value="income">Income</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-[10px] md:text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5 md:mb-2">Description</label>
+                    <input type="text" id="description" placeholder="e.g., Groceries, Salary" class="w-full p-3 md:p-3.5 rounded-xl transition-all text-sm" required autocomplete="off">
+                </div>
+
+                <div>
+                    <label id="amount-label" class="block text-[10px] md:text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5 md:mb-2">Amount</label>
+                    <input type="number" id="amount" placeholder="0.00" step="0.01" min="0.01" class="w-full p-3 md:p-3.5 rounded-xl transition-all text-sm font-medium" required>
+                </div>
+
+                <div id="category-container" class="flex-1">
+                    <label class="block text-[10px] md:text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5 md:mb-2">Category</label>
+                    <select id="category" class="w-full p-3 md:p-3.5 rounded-xl transition-all text-sm" required>
+                        <option value="Food & Dining">Food & Dining</option>
+                        <option value="Housing & Rent">Housing & Rent</option>
+                        <option value="Transportation">Transportation</option>
+                        <option value="Utilities">Utilities</option>
+                        <option value="Entertainment">Entertainment</option>
+                        <option value="Shopping">Shopping</option>
+                        <option value="Health">Health</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+
+                <button type="submit" class="w-full py-3.5 md:py-4 mt-4 md:mt-auto bg-gradient-to-r from-[#D8D365] to-[#E6F082] hover:from-[#E6F082] hover:to-[#D8D365] text-[#454040] text-sm md:text-base font-bold rounded-xl shadow-[0_0_20px_rgba(216,211,101,0.4)] transform active:scale-[0.98] transition-all">
+                    Save Transaction
+                </button>
+            </form>
+        </div>
+
+        <!-- 5. Bento Box: Bar Chart -->
+        <div class="glass-panel p-5 md:p-7 xl:col-span-2 md:col-span-2 tilt-panel transition-all flex flex-col min-h-[250px] md:min-h-[300px]">
+            <div class="tilt-content flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 md:mb-6 gap-3">
+                <h3 class="text-base md:text-lg font-semibold text-white"><i class="fa-solid fa-chart-column mr-2 text-[#D8D365]"></i>Income vs Expense</h3>
+                
+                <div class="flex space-x-1 bg-[#454040]/60 p-1 rounded-xl border border-[#D8D365]/20 w-full sm:w-auto overflow-x-auto custom-scrollbar">
+                    <button onclick="setTrendFilter('daily')" id="btn-daily" class="flex-1 sm:flex-none px-3 md:px-4 py-1.5 rounded-lg text-xs font-semibold bg-[#D8D365] text-[#454040] shadow-[0_0_10px_rgba(216,211,101,0.4)] transition-all">Daily</button>
+                    <button onclick="setTrendFilter('monthly')" id="btn-monthly" class="flex-1 sm:flex-none px-3 md:px-4 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white transition-all">Monthly</button>
+                    <button onclick="setTrendFilter('yearly')" id="btn-yearly" class="flex-1 sm:flex-none px-3 md:px-4 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white transition-all">Yearly</button>
+                </div>
+            </div>
+
+            <div class="relative w-full flex-1 flex items-center justify-center">
+                <canvas id="barChart"></canvas>
+                <div id="empty-bar-msg" class="absolute inset-0 flex items-center justify-center text-[#D8D365] text-xs md:text-sm hidden tilt-content">
+                    No trend data available.
+                </div>
+            </div>
+        </div>
+
+        <!-- 6. Bento Box: Pie Chart -->
+        <div class="glass-panel p-5 md:p-7 xl:col-span-1 md:col-span-2 tilt-panel transition-all flex flex-col min-h-[250px] md:min-h-[300px]">
+            <h3 class="text-base md:text-lg font-semibold text-white tilt-content mb-3 md:mb-4"><i class="fa-solid fa-chart-pie mr-2 text-[#E6F082]"></i>Breakdown</h3>
+            <div class="relative w-full flex-1 flex items-center justify-center">
+                <canvas id="expenseChart"></canvas>
+                <div id="empty-chart-msg" class="absolute inset-0 flex items-center justify-center text-[#D8D365] text-xs md:text-sm hidden tilt-content">
+                    No expense data yet
+                </div>
+            </div>
+        </div>
+
+        <!-- 7. Bento Box: History -->
+        <div class="glass-panel p-5 md:p-7 xl:col-span-3 md:col-span-2 flex flex-col transition-all min-h-[300px] md:min-h-[350px]">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 md:mb-5 gap-3">
+                <h3 class="text-base md:text-lg font-semibold text-white"><i class="fa-solid fa-list-ul mr-2 text-[#D8D365]"></i>Recent History</h3>
+                <div class="flex flex-wrap gap-2">
+                    <button id="export-pdf" class="text-[10px] md:text-xs font-bold text-[#454040] hover:scale-105 bg-gradient-to-r from-[#D8D365] to-[#E6F082] px-2.5 py-1.5 md:px-3 rounded-lg transition-all shadow-[0_0_10px_rgba(216,211,101,0.3)]" title="Download Invoice PDF"><i class="fa-solid fa-file-pdf mr-1.5"></i>Invoice PDF</button>
+                    <button id="export-json" class="text-[10px] md:text-xs font-semibold text-[#D8D365] hover:text-[#454040] hover:bg-[#D8D365] bg-[#D8D365]/20 px-2.5 py-1.5 md:px-3 rounded-lg transition-all" title="Download Raw JSON"><i class="fa-solid fa-database mr-1.5"></i>Backup JSON</button>
+                    <button id="import-btn" class="text-[10px] md:text-xs font-semibold text-[#D8D365] hover:text-[#454040] hover:bg-[#D8D365] bg-[#D8D365]/20 px-2.5 py-1.5 md:px-3 rounded-lg transition-all" title="Upload JSON Backup"><i class="fa-solid fa-upload mr-1.5"></i>Restore JSON</button>
+                    <input type="file" id="import-data" accept=".json" class="hidden">
+                    <button id="clear-all" class="text-[10px] md:text-xs font-semibold text-[#E6F082] hover:text-[#454040] hover:bg-[#E6F082] bg-[#E6F082]/20 px-2.5 py-1.5 md:px-3 rounded-lg transition-all"><i class="fa-solid fa-trash mr-1.5"></i>Clear All</button>
+                </div>
+            </div>
+            
+            <div id="transaction-list" class="flex-1 overflow-y-auto space-y-2 md:space-y-3 pr-1 md:pr-2 custom-scrollbar">
+                <!-- Transactions injected here -->
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Application Logic ES Module -->
+    <script type="module">
+        import * as THREE from 'https://esm.sh/three@0.143.0';
+        import { BloomEffect, EffectComposer, EffectPass, RenderPass, SMAAEffect, SMAAPreset } from 'https://esm.sh/postprocessing@6.29.3?deps=three@0.143.0';
+
+        // --- STATE ---
+        let transactions = JSON.parse(localStorage.getItem('nexus_transactions')) || [];
+        let currentCurrency = localStorage.getItem('nexus_currency') || 'USD';
+        let chartInstance = null;
+        let barChartInstance = null;
+        let currentTrendFilter = 'daily';
+        const isMobile = window.matchMedia("(pointer: coarse)").matches; 
+
+        // Attach functions to window so inline HTML onclicks work inside the module
+        window.setTrendFilter = setTrendFilter;
+        window.deleteTransaction = deleteTransaction;
+        window.clearAll = clearAll;
+        window.exportPDF = exportPDF;
+        window.exportJSON = exportJSON;
+        window.triggerImport = triggerImport;
+        window.importData = importData;
+        window.showHomePage = showHomePage;
+        window.showDashboard = showDashboard;
+        window.showFeaturesPage = showFeaturesPage;
+
+        // --- DOM ELEMENTS ---
+        const loaderOverlay = document.getElementById('loader-overlay');
+        const sharedHeader = document.getElementById('shared-header');
+        const homePage = document.getElementById('home-page');
+        const featuresPage = document.getElementById('features-page');
+        const dashboardPage = document.getElementById('dashboard-page');
+        const balanceEl = document.getElementById('total-balance');
+        const incomeEl = document.getElementById('total-income');
+        const expenseEl = document.getElementById('total-expense');
+        const listEl = document.getElementById('transaction-list');
+        const form = document.getElementById('transaction-form');
+        const typeInput = document.getElementById('type');
+        const categoryContainer = document.getElementById('category-container');
+        const emptyChartMsg = document.getElementById('empty-chart-msg');
+        const emptyBarMsg = document.getElementById('empty-bar-msg');
+        const currencySelector = document.getElementById('currency-selector');
+        const amountLabel = document.getElementById('amount-label');
+
+        // Custom Theme Category Colors derived from palette
+        const categoryColors = {
+            'Food & Dining': '#E6F082',    // Lime Yellow
+            'Housing & Rent': '#D8D365',   // Mustard Yellow
+            'Transportation': '#a6a147',   // Darker Mustard
+            'Utilities': '#c5cc6e',        // Muted Lime
+            'Entertainment': '#827f42',    // Olive
+            'Shopping': '#eef5a4',         // Light Lime
+            'Health': '#f2f0c9',           // Pale Yellow
+            'Other': '#605B51'             // Medium Gray/Brown
+        };
+
+        const categoryIcons = {
+            'Food & Dining': 'fa-utensils', 'Housing & Rent': 'fa-house', 'Transportation': 'fa-car',
+            'Utilities': 'fa-bolt', 'Entertainment': 'fa-film', 'Shopping': 'fa-bag-shopping',
+            'Health': 'fa-heart-pulse', 'Other': 'fa-circle-dot', 'Income': 'fa-money-bill-wave'
+        };
+
+        // --- INIT ---
+        function initApp() {
+            currencySelector.value = currentCurrency;
+            updateCurrencyLabel();
+
+            // Setup Event Listeners
+            form.addEventListener('submit', addTransaction);
+            typeInput.addEventListener('change', handleTypeChange);
+            document.getElementById('clear-all').addEventListener('click', clearAll);
+            document.getElementById('export-pdf').addEventListener('click', exportPDF);
+            document.getElementById('export-json').addEventListener('click', exportJSON);
+            document.getElementById('import-btn').addEventListener('click', triggerImport);
+            document.getElementById('import-data').addEventListener('change', importData);
+            currencySelector.addEventListener('change', handleCurrencyChange);
+            
+            // Navigation to Dashboard
+            document.getElementById('hero-get-started').addEventListener('click', showDashboard);
+            document.getElementById('nav-get-started').addEventListener('click', showDashboard);
+        }
+
+        // --- TRANSITION LOGIC ---
+        function triggerTransition(callback) {
+            loaderOverlay.classList.add('active');
+            setTimeout(() => {
+                callback();
+                setTimeout(() => {
+                    loaderOverlay.classList.remove('active');
+                }, 200); // Give a tiny moment for DOM to paint before fading out
+            }, 1200); // Show loader for 1.2s to appreciate the animation
+        }
+
+        // Switch View Logic
+        function showDashboard() {
+            triggerTransition(() => {
+                sharedHeader.classList.add('hidden');
+                homePage.classList.add('hidden');
+                featuresPage.classList.add('hidden');
+                
+                dashboardPage.classList.remove('hidden');
+                dashboardPage.classList.add('grid');
+                
+                initTiltEffect();
+                updateUI(); 
+                window.scrollTo(0,0);
+            });
+        }
+
+        function showHomePage() {
+            triggerTransition(() => {
+                dashboardPage.classList.add('hidden');
+                dashboardPage.classList.remove('grid');
+                featuresPage.classList.add('hidden');
+                
+                sharedHeader.classList.remove('hidden');
+                homePage.classList.remove('hidden');
+                window.scrollTo(0,0);
+            });
+        }
+
+        function showFeaturesPage() {
+            triggerTransition(() => {
+                dashboardPage.classList.add('hidden');
+                dashboardPage.classList.remove('grid');
+                homePage.classList.add('hidden');
+                
+                sharedHeader.classList.remove('hidden');
+                featuresPage.classList.remove('hidden');
+                featuresPage.classList.add('flex');
+                window.scrollTo(0,0);
+            });
+        }
+
+        // --- BACKUP & RESTORE ---
+        
+        function exportPDF() {
+            if (transactions.length === 0) return alert('No data to export yet.');
+
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+
+            // Custom Theme Colors mapped to RGB for jsPDF
+            const darkGray = [69, 64, 64];      // #454040
+            const medGray = [96, 91, 81];       // #605B51
+            const mustard = [216, 211, 101];    // #D8D365
+            const lime = [230, 240, 130];       // #E6F082
+
+            // Generate Header Banner
+            doc.setFillColor(...darkGray);
+            doc.rect(0, 0, 210, 40, 'F');
+            
+            // Generate Title
+            doc.setTextColor(...mustard);
+            doc.setFontSize(24);
+            doc.setFont('helvetica', 'bold');
+            doc.text("EXPFLOW", 14, 22);
+            
+            // Generate Subtitle
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text("FINANCIAL STATEMENT / INVOICE", 14, 30);
+
+            // Calculations
+            const income = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+            const expense = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+            const net = income - expense;
+
+            // Generate Summary Info Block
+            doc.setTextColor(0, 0, 0);
+            doc.setFontSize(11);
+            doc.text(`Generated On: ${new Date().toLocaleDateString()}`, 14, 50);
+            doc.text(`Total Income: ${formatCurrency(income)}`, 14, 58);
+            doc.text(`Total Expense: ${formatCurrency(expense)}`, 14, 66);
+            
+            doc.setFont('helvetica', 'bold');
+            doc.text(`Net Balance: ${formatCurrency(net)}`, 14, 76);
+
+            // Generate Table Data using AutoTable
+            const tableBody = transactions.map(t => [
+                new Date(t.date).toLocaleDateString(),
+                t.desc,
+                t.category,
+                t.type.toUpperCase(),
+                `${t.type === 'income' ? '+' : '-'}${formatCurrency(t.amount)}`
+            ]);
+
+            doc.autoTable({
+                startY: 85,
+                head: [['Date', 'Description', 'Category', 'Type', 'Amount']],
+                body: tableBody,
+                theme: 'grid',
+                headStyles: { fillColor: medGray, textColor: lime, fontStyle: 'bold' },
+                alternateRowStyles: { fillColor: [245, 245, 245] },
+                styles: { font: 'helvetica', fontSize: 10 },
+                columnStyles: {
+                    4: { halign: 'right', fontStyle: 'bold' } // Align amount to the right
+                }
+            });
+
+            // Generate Footer
+            const pageCount = doc.internal.getNumberOfPages();
+            for(let i = 1; i <= pageCount; i++) {
+                doc.setPage(i);
+                doc.setFontSize(8);
+                doc.setTextColor(150);
+                doc.setFont('helvetica', 'normal');
+                doc.text(`EXPFLOW - Since 2026 • Page ${i} of ${pageCount}`, 14, doc.internal.pageSize.height - 10);
+            }
+
+            doc.save(`EXPFLOW_Invoice_${new Date().toISOString().split('T')[0]}.pdf`);
+        }
+
+        function exportJSON() {
+            if (transactions.length === 0) return alert('No data to backup yet.');
+            const dataStr = JSON.stringify(transactions, null, 2);
+            const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+            const exportName = `expflow_raw_backup_${new Date().toISOString().split('T')[0]}.json`;
+            const link = document.createElement('a');
+            link.setAttribute('href', dataUri);
+            link.setAttribute('download', exportName);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+        }
+
+        function triggerImport() {
+            document.getElementById('import-data').click();
+        }
+
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (Array.isArray(imported)) {
+                        transactions = imported;
+                        localStorage.setItem('nexus_transactions', JSON.stringify(transactions));
+                        updateUI();
+                    } else {
+                        alert('Invalid backup file format.');
+                    }
+                } catch (err) {
+                    alert('Error parsing backup file.');
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = ''; // Reset input
+        }
+
+        // --- CURRENCY LOGIC ---
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat(undefined, { 
+                style: 'currency', 
+                currency: currentCurrency,
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(amount);
+        }
+
+        function updateCurrencyLabel() {
+            const parts = new Intl.NumberFormat(undefined, { style: 'currency', currency: currentCurrency }).formatToParts(0);
+            const symbol = parts.find(p => p.type === 'currency')?.value || currentCurrency;
+            amountLabel.innerText = `Amount (${symbol})`;
+        }
+
+        function handleCurrencyChange(e) {
+            currentCurrency = e.target.value;
+            localStorage.setItem('nexus_currency', currentCurrency);
+            updateCurrencyLabel();
+            updateUI();
+        }
+
+        // --- HANDLERS ---
+        function setTrendFilter(filter) {
+            currentTrendFilter = filter;
+            ['daily', 'monthly', 'yearly'].forEach(f => {
+                const btn = document.getElementById(`btn-${f}`);
+                if (f === filter) {
+                    btn.classList.add('bg-[#D8D365]', 'text-[#454040]');
+                    btn.style.boxShadow = '0 0 10px rgba(216,211,101,0.4)';
+                    btn.classList.remove('text-slate-300');
+                } else {
+                    btn.classList.remove('bg-[#D8D365]', 'text-[#454040]');
+                    btn.style.boxShadow = 'none';
+                    btn.classList.add('text-slate-300');
+                }
+            });
+            renderBarChart();
+        }
+
+        function handleTypeChange(e) {
+            if (e.target.value === 'income') {
+                categoryContainer.style.display = 'none';
+                document.getElementById('category').removeAttribute('required');
+            } else {
+                categoryContainer.style.display = 'block';
+                document.getElementById('category').setAttribute('required', 'true');
+            }
+        }
+
+        function addTransaction(e) {
+            e.preventDefault();
+            const type = document.getElementById('type').value;
+            const desc = document.getElementById('description').value;
+            const amount = parseFloat(document.getElementById('amount').value);
+            const category = type === 'expense' ? document.getElementById('category').value : 'Income';
+
+            if (desc.trim() === '' || isNaN(amount)) return;
+
+            transactions.unshift({
+                id: Math.floor(Math.random() * 100000000).toString(16),
+                type, desc, amount, category, date: new Date().toISOString()
+            }); 
+            
+            localStorage.setItem('nexus_transactions', JSON.stringify(transactions));
+            updateUI();
+            form.reset();
+            typeInput.dispatchEvent(new Event('change'));
+        }
+
+        function deleteTransaction(id) {
+            transactions = transactions.filter(t => t.id !== id);
+            localStorage.setItem('nexus_transactions', JSON.stringify(transactions));
+            updateUI();
+        }
+
+        function clearAll() {
+            if(confirm("Are you sure you want to clear all history?")) {
+                transactions = [];
+                localStorage.setItem('nexus_transactions', JSON.stringify(transactions));
+                updateUI();
+            }
+        }
+
+        // --- UI UPDATES ---
+        function updateUI() {
+            const amounts = transactions.map(t => t.type === 'income' ? t.amount : -t.amount);
+            const total = amounts.reduce((acc, item) => (acc += item), 0);
+            
+            const income = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+            const expense = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+
+            balanceEl.innerText = formatCurrency(total);
+            balanceEl.className = `text-4xl md:text-5xl lg:text-6xl font-bold tracking-tighter truncate ${total >= 0 ? 'text-white' : 'text-[#E6F082]'}`;
+            incomeEl.innerText = formatCurrency(income);
+            expenseEl.innerText = formatCurrency(expense);
+
+            listEl.innerHTML = '';
+            if (transactions.length === 0) {
+                listEl.innerHTML = `
+                    <div class="h-full flex flex-col items-center justify-center text-slate-400 text-xs md:text-sm space-y-3 pt-6 md:pt-10">
+                        <i class="fa-solid fa-receipt text-3xl md:text-4xl opacity-20"></i>
+                        <span class="text-center px-4">No transactions found. Add one to start tracking!</span>
+                    </div>`;
+            } else {
+                transactions.forEach(t => {
+                    const isInc = t.type === 'income';
+                    const icon = categoryIcons[t.category] || 'fa-circle-dot';
+
+                    const item = document.createElement('div');
+                    item.className = 'flex justify-between items-center p-3 md:p-4 bg-[#454040]/40 rounded-xl md:rounded-2xl border border-[#D8D365]/10 hover:bg-[#454040]/60 hover:border-[#D8D365]/30 transition-all group';
+                    item.innerHTML = `
+                        <div class="flex items-center space-x-3 md:space-x-4 overflow-hidden">
+                            <div class="w-9 h-9 md:w-11 md:h-11 rounded-lg md:rounded-xl bg-[#454040] flex items-center justify-center flex-shrink-0 border border-[#D8D365]/20">
+                                <i class="fa-solid ${icon} text-[10px] md:text-sm ${isInc ? 'text-[#D8D365]' : 'text-[#E6F082]'}"></i>
+                            </div>
+                            <div class="truncate">
+                                <p class="text-xs md:text-sm font-semibold text-white truncate">${t.desc}</p>
+                                <p class="text-[10px] md:text-xs text-slate-400 font-medium mt-0.5">${t.category}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2 md:space-x-4 flex-shrink-0">
+                            <span class="text-xs md:text-sm font-bold tracking-tight ${isInc ? 'text-[#D8D365]' : 'text-[#E6F082]'}">${isInc ? '+' : '-'}${formatCurrency(t.amount)}</span>
+                            <button onclick="deleteTransaction('${t.id}')" class="md:opacity-0 md:group-hover:opacity-100 w-6 h-6 md:w-8 md:h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-[#454040] hover:bg-[#E6F082] transition-all">
+                                <i class="fa-solid fa-trash-can text-[10px] md:text-sm"></i>
+                            </button>
+                        </div>
+                    `;
+                    listEl.appendChild(item);
+                });
+            }
+
+            renderChart();
+            renderBarChart();
+        }
+
+        // --- CHARTS ---
+        Chart.defaults.color = '#cbd5e1';
+        Chart.defaults.font.family = 'Inter';
+
+        function renderChart() {
+            const expenseData = {};
+            let totalExpense = 0;
+            transactions.forEach(t => {
+                if (t.type === 'expense') {
+                    if (!expenseData[t.category]) expenseData[t.category] = 0;
+                    expenseData[t.category] += t.amount;
+                    totalExpense += t.amount;
+                }
+            });
+
+            const categories = Object.keys(expenseData);
+            const amounts = Object.values(expenseData);
+
+            if (categories.length === 0) {
+                emptyChartMsg.classList.remove('hidden');
+                if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+                return;
+            }
+
+            emptyChartMsg.classList.add('hidden');
+            const bgColors = categories.map(cat => categoryColors[cat] || categoryColors['Other']);
+            const ctx = document.getElementById('expenseChart').getContext('2d');
+            
+            if (chartInstance) chartInstance.destroy();
+
+            chartInstance = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: categories,
+                    datasets: [{ data: amounts, backgroundColor: bgColors, borderWidth: 2, borderColor: '#454040', hoverOffset: 6 }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', labels: { padding: isMobile ? 10 : 20, usePointStyle: true, boxWidth: 6, font: {size: 10} } },
+                        tooltip: {
+                            backgroundColor: 'rgba(96, 91, 81, 0.95)', titleColor: '#fff', bodyColor: '#cbd5e1',
+                            borderColor: 'rgba(216, 211, 101, 0.3)', borderWidth: 1, padding: 12, cornerRadius: 8,
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.label ? context.label + ': ' : '';
+                                    if (context.parsed !== null) {
+                                        label += formatCurrency(context.parsed);
+                                        label += ` (${((context.parsed / totalExpense) * 100).toFixed(1)}%)`;
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function getTrendData() {
+            const dataMap = new Map();
+            transactions.forEach(t => {
+                const d = new Date(t.date);
+                let key, sortKey;
+                if (currentTrendFilter === 'daily') {
+                    key = d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+                    sortKey = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+                } else if (currentTrendFilter === 'monthly') {
+                    key = d.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+                    sortKey = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+                } else {
+                    key = d.getFullYear().toString();
+                    sortKey = new Date(d.getFullYear(), 0, 1).getTime();
+                }
+                if (!dataMap.has(key)) dataMap.set(key, { sortKey, income: 0, expense: 0 });
+                const entry = dataMap.get(key);
+                if (t.type === 'income') entry.income += t.amount;
+                if (t.type === 'expense') entry.expense += t.amount;
+            });
+
+            const sortedData = Array.from(dataMap.entries()).sort((a, b) => a[1].sortKey - b[1].sortKey);
+            return { labels: sortedData.map(i => i[0]), incomes: sortedData.map(i => i[1].income), expenses: sortedData.map(i => i[1].expense) };
+        }
+
+        function renderBarChart() {
+            const trendData = getTrendData();
+            const ctx = document.getElementById('barChart').getContext('2d');
+            
+            if (trendData.labels.length === 0) {
+                emptyBarMsg.classList.remove('hidden');
+                if (barChartInstance) { barChartInstance.destroy(); barChartInstance = null; }
+                return;
+            }
+
+            emptyBarMsg.classList.add('hidden');
+            if (barChartInstance) barChartInstance.destroy();
+
+            barChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: trendData.labels,
+                    datasets: [
+                        { label: 'Income', data: trendData.incomes, backgroundColor: 'rgba(216, 211, 101, 0.9)', borderRadius: 4, maxBarThickness: 30 },
+                        { label: 'Expense', data: trendData.expenses, backgroundColor: 'rgba(230, 240, 130, 0.9)', borderRadius: 4, maxBarThickness: 30 }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        y: {
+                            beginAtZero: true, grid: { color: 'rgba(255, 255, 255, 0.05)', drawBorder: false },
+                            ticks: { 
+                                color: '#cbd5e1', font: {size: 10},
+                                callback: function(value) { 
+                                    return new Intl.NumberFormat(undefined, {style:'currency', currency: currentCurrency, maximumFractionDigits:0}).format(value); 
+                                } 
+                            },
+                            border: { display: false }
+                        },
+                        x: {
+                            grid: { display: false }, ticks: { color: '#cbd5e1', font: { weight: '500', size: 10 }, maxRotation: 45, minRotation: 45 },
+                            border: { display: false }
+                        }
+                    },
+                    plugins: {
+                        legend: { position: 'top', align: 'end', labels: { color: '#cbd5e1', usePointStyle: true, boxWidth: 6, font:{size:10} } },
+                        tooltip: {
+                            backgroundColor: 'rgba(96, 91, 81, 0.95)', titleColor: '#fff', bodyColor: '#cbd5e1',
+                            borderColor: 'rgba(216, 211, 101, 0.3)', borderWidth: 1, padding: 10, cornerRadius: 8,
+                            callbacks: { label: function(context) { return ` ${context.dataset.label}: ${formatCurrency(context.parsed.y)}`; } }
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- 3D INTERACTION ---
+        function initTiltEffect() {
+            if (isMobile) return; 
+
+            document.querySelectorAll('.tilt-panel').forEach(panel => {
+                panel.addEventListener('mousemove', (e) => {
+                    panel.style.transition = 'none'; 
+                    const rect = panel.getBoundingClientRect();
+                    const x = e.clientX - rect.left;
+                    const y = e.clientY - rect.top;
+                    const rotateX = ((y - (rect.height / 2)) / (rect.height / 2)) * -4; 
+                    const rotateY = ((x - (rect.width / 2)) / (rect.width / 2)) * 4;
+                    panel.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.01, 1.01, 1.01)`;
+                });
+
+                panel.addEventListener('mouseleave', () => {
+                    panel.style.transition = 'transform 0.5s cubic-bezier(0.25, 1, 0.5, 1)';
+                    panel.style.transform = `perspective(1000px) rotateX(0) rotateY(0) scale3d(1, 1, 1)`;
+                });
+            });
+        }
+
+        // --- THREE.JS BACKGROUND (HYPERSPEED) ---
+        function initThreeJS() {
+            const container = document.getElementById('webgl-container');
+            if (!container) return;
+
+            const nsin = val => Math.sin(val) * 0.5 + 0.5;
+            const random = base => Array.isArray(base) ? Math.random() * (base[1] - base[0]) + base[0] : Math.random() * base;
+            const pickRandom = arr => Array.isArray(arr) ? arr[Math.floor(Math.random() * arr.length)] : arr;
+            function lerp(current, target, speed = 0.1, limit = 0.001) {
+                let change = (target - current) * speed;
+                if (Math.abs(change) < limit) change = target - current;
+                return change;
+            }
+
+            const turbulentUniforms = {
+                uFreq: { value: new THREE.Vector4(4, 8, 8, 1) },
+                uAmp: { value: new THREE.Vector4(25, 5, 10, 10) }
+            };
+
+            const distortions = {
+                turbulentDistortion: {
+                    uniforms: turbulentUniforms,
+                    getDistortion: `
+                        uniform vec4 uFreq;
+                        uniform vec4 uAmp;
+                        float nsin(float val){
+                            return sin(val) * 0.5 + 0.5;
+                        }
+                        #define PI 3.14159265358979
+                        float getDistortionX(float progress){
+                            return (
+                                cos(PI * progress * uFreq.r + uTime) * uAmp.r +
+                                pow(cos(PI * progress * uFreq.g + uTime * (uFreq.g / uFreq.r)), 2. ) * uAmp.g
+                            );
+                        }
+                        float getDistortionY(float progress){
+                            return (
+                                -nsin(PI * progress * uFreq.b + uTime) * uAmp.b +
+                                -pow(nsin(PI * progress * uFreq.a + uTime / (uFreq.b / uFreq.a)), 5.) * uAmp.a
+                            );
+                        }
+                        vec3 getDistortion(float progress){
+                            return vec3(
+                                getDistortionX(progress) - getDistortionX(0.0125),
+                                getDistortionY(progress) - getDistortionY(0.0125),
+                                0.
+                            );
+                        }
+                    `,
+                    getJS: (progress, time) => {
+                        const uFreq = turbulentUniforms.uFreq.value;
+                        const uAmp = turbulentUniforms.uAmp.value;
+                        const getX = p => Math.cos(Math.PI * p * uFreq.x + time) * uAmp.x + Math.pow(Math.cos(Math.PI * p * uFreq.y + time * (uFreq.y / uFreq.x)), 2) * uAmp.y;
+                        const getY = p => -nsin(Math.PI * p * uFreq.z + time) * uAmp.z - Math.pow(nsin(Math.PI * p * uFreq.w + time / (uFreq.z / uFreq.w)), 5) * uAmp.w;
+                        let distortion = new THREE.Vector3(getX(progress) - getX(progress + 0.007), getY(progress) - getY(progress + 0.007), 0);
+                        let lookAtAmp = new THREE.Vector3(-2, -5, 0);
+                        let lookAtOffset = new THREE.Vector3(0, 0, -10);
+                        return distortion.multiply(lookAtAmp).add(lookAtOffset);
+                    }
+                }
+            };
+
+            const distortion_uniforms = {
+                uDistortionX: { value: new THREE.Vector2(80, 3) },
+                uDistortionY: { value: new THREE.Vector2(-40, 2.5) }
+            };
+
+            const distortion_vertex = `
+                #define PI 3.14159265358979
+                uniform vec2 uDistortionX;
+                uniform vec2 uDistortionY;
+                float nsin(float val){ return sin(val) * 0.5 + 0.5; }
+                vec3 getDistortion(float progress){
+                    progress = clamp(progress, 0., 1.);
+                    float xAmp = uDistortionX.r;
+                    float xFreq = uDistortionX.g;
+                    float yAmp = uDistortionY.r;
+                    float yFreq = uDistortionY.g;
+                    return vec3( xAmp * nsin(progress * PI * xFreq - PI / 2.), yAmp * nsin(progress * PI * yFreq - PI / 2.), 0. );
+                }
+            `;
+
+            const carLightsFragment = `
+                #define USE_FOG;
+                ${THREE.ShaderChunk['fog_pars_fragment']}
+                varying vec3 vColor;
+                varying vec2 vUv; 
+                uniform vec2 uFade;
+                void main() {
+                    vec3 color = vec3(vColor);
+                    float alpha = smoothstep(uFade.x, uFade.y, vUv.x);
+                    gl_FragColor = vec4(color, alpha);
+                    if (gl_FragColor.a < 0.0001) discard;
+                    ${THREE.ShaderChunk['fog_fragment']}
+                }
+            `;
+
+            const carLightsVertex = `
+                #define USE_FOG;
+                ${THREE.ShaderChunk['fog_pars_vertex']}
+                attribute vec3 aOffset;
+                attribute vec3 aMetrics;
+                attribute vec3 aColor;
+                uniform float uTravelLength;
+                uniform float uTime;
+                varying vec2 vUv; 
+                varying vec3 vColor; 
+                #include <getDistortion_vertex>
+                void main() {
+                    vec3 transformed = position.xyz;
+                    float radius = aMetrics.r;
+                    float myLength = aMetrics.g;
+                    float speed = aMetrics.b;
+
+                    transformed.xy *= radius;
+                    transformed.z *= myLength;
+                    transformed.z += myLength - mod(uTime * speed + aOffset.z, uTravelLength);
+                    transformed.xy += aOffset.xy;
+
+                    float progress = abs(transformed.z / uTravelLength);
+                    transformed.xyz += getDistortion(progress);
+
+                    vec4 mvPosition = modelViewMatrix * vec4(transformed, 1.);
+                    gl_Position = projectionMatrix * mvPosition;
+                    vUv = uv;
+                    vColor = aColor;
+                    ${THREE.ShaderChunk['fog_vertex']}
+                }
+            `;
+
+            class CarLights {
+                constructor(webgl, options, colors, speed, fade) {
+                    this.webgl = webgl;
+                    this.options = options;
+                    this.colors = colors;
+                    this.speed = speed;
+                    this.fade = fade;
+                }
+                init() {
+                    const options = this.options;
+                    let curve = new THREE.LineCurve3(new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -1));
+                    let geometry = new THREE.TubeGeometry(curve, 40, 1, 8, false);
+                    let instanced = new THREE.InstancedBufferGeometry().copy(geometry);
+                    instanced.instanceCount = options.lightPairsPerRoadWay * 2;
+                    let laneWidth = options.roadWidth / options.lanesPerRoad;
+
+                    let aOffset = [], aMetrics = [], aColor = [];
+                    let colors = Array.isArray(this.colors) ? this.colors.map(c => new THREE.Color(c)) : new THREE.Color(this.colors);
+
+                    for (let i = 0; i < options.lightPairsPerRoadWay; i++) {
+                        let radius = random(options.carLightsRadius);
+                        let length = random(options.carLightsLength);
+                        let speed = random(this.speed);
+                        let carLane = i % options.lanesPerRoad;
+                        let laneX = carLane * laneWidth - options.roadWidth / 2 + laneWidth / 2;
+                        let carWidth = random(options.carWidthPercentage) * laneWidth;
+                        let carShiftX = random(options.carShiftX) * laneWidth;
+                        laneX += carShiftX;
+                        let offsetY = random(options.carFloorSeparation) + radius * 1.3;
+                        let offsetZ = -random(options.length);
+
+                        aOffset.push(laneX - carWidth / 2, offsetY, offsetZ);
+                        aOffset.push(laneX + carWidth / 2, offsetY, offsetZ);
+                        aMetrics.push(radius, length, speed);
+                        aMetrics.push(radius, length, speed);
+                        let color = pickRandom(colors);
+                        aColor.push(color.r, color.g, color.b);
+                        aColor.push(color.r, color.g, color.b);
+                    }
+                    instanced.setAttribute('aOffset', new THREE.InstancedBufferAttribute(new Float32Array(aOffset), 3, false));
+                    instanced.setAttribute('aMetrics', new THREE.InstancedBufferAttribute(new Float32Array(aMetrics), 3, false));
+                    instanced.setAttribute('aColor', new THREE.InstancedBufferAttribute(new Float32Array(aColor), 3, false));
+
+                    let material = new THREE.ShaderMaterial({
+                        fragmentShader: carLightsFragment,
+                        vertexShader: carLightsVertex,
+                        transparent: true,
+                        uniforms: Object.assign({ uTime: { value: 0 }, uTravelLength: { value: options.length }, uFade: { value: this.fade } }, this.webgl.fogUniforms, options.distortion.uniforms)
+                    });
+                    material.onBeforeCompile = shader => {
+                        shader.vertexShader = shader.vertexShader.replace('#include <getDistortion_vertex>', options.distortion.getDistortion);
+                    };
+                    let mesh = new THREE.Mesh(instanced, material);
+                    mesh.frustumCulled = false;
+                    this.webgl.scene.add(mesh);
+                    this.mesh = mesh;
+                }
+                update(time) { this.mesh.material.uniforms.uTime.value = time; }
+            }
+
+            const sideSticksVertex = `
+                #define USE_FOG;
+                ${THREE.ShaderChunk['fog_pars_vertex']}
+                attribute float aOffset;
+                attribute vec3 aColor;
+                attribute vec2 aMetrics;
+                uniform float uTravelLength;
+                uniform float uTime;
+                varying vec3 vColor;
+                mat4 rotationY( in float angle ) {
+                    return mat4( cos(angle), 0, sin(angle), 0, 0, 1.0, 0, 0, -sin(angle), 0, cos(angle), 0, 0, 0, 0, 1);
+                }
+                #include <getDistortion_vertex>
+                void main(){
+                    vec3 transformed = position.xyz;
+                    float width = aMetrics.x;
+                    float height = aMetrics.y;
+                    transformed.xy *= vec2(width, height);
+                    float time = mod(uTime * 60. * 2. + aOffset, uTravelLength);
+                    transformed = (rotationY(3.14/2.) * vec4(transformed,1.)).xyz;
+                    transformed.z += - uTravelLength + time;
+                    float progress = abs(transformed.z / uTravelLength);
+                    transformed.xyz += getDistortion(progress);
+                    transformed.y += height / 2.;
+                    transformed.x += -width / 2.;
+                    vec4 mvPosition = modelViewMatrix * vec4(transformed, 1.);
+                    gl_Position = projectionMatrix * mvPosition;
+                    vColor = aColor;
+                    ${THREE.ShaderChunk['fog_vertex']}
+                }
+            `;
+
+            const sideSticksFragment = `
+                #define USE_FOG;
+                ${THREE.ShaderChunk['fog_pars_fragment']}
+                varying vec3 vColor;
+                void main(){
+                    vec3 color = vec3(vColor);
+                    gl_FragColor = vec4(color,1.);
+                    ${THREE.ShaderChunk['fog_fragment']}
+                }
+            `;
+
+            class LightsSticks {
+                constructor(webgl, options) { this.webgl = webgl; this.options = options; }
+                init() {
+                    const options = this.options;
+                    const geometry = new THREE.PlaneGeometry(1, 1);
+                    let instanced = new THREE.InstancedBufferGeometry().copy(geometry);
+                    let totalSticks = options.totalSideLightSticks;
+                    instanced.instanceCount = totalSticks;
+                    let stickoffset = options.length / (totalSticks - 1);
+                    const aOffset = [], aColor = [], aMetrics = [];
+                    let colors = Array.isArray(options.colors.sticks) ? options.colors.sticks.map(c => new THREE.Color(c)) : new THREE.Color(options.colors.sticks);
+
+                    for (let i = 0; i < totalSticks; i++) {
+                        let width = random(options.lightStickWidth);
+                        let height = random(options.lightStickHeight);
+                        aOffset.push((i - 1) * stickoffset * 2 + stickoffset * Math.random());
+                        let color = pickRandom(colors);
+                        aColor.push(color.r, color.g, color.b);
+                        aMetrics.push(width, height);
+                    }
+                    instanced.setAttribute('aOffset', new THREE.InstancedBufferAttribute(new Float32Array(aOffset), 1, false));
+                    instanced.setAttribute('aColor', new THREE.InstancedBufferAttribute(new Float32Array(aColor), 3, false));
+                    instanced.setAttribute('aMetrics', new THREE.InstancedBufferAttribute(new Float32Array(aMetrics), 2, false));
+
+                    const material = new THREE.ShaderMaterial({
+                        fragmentShader: sideSticksFragment,
+                        vertexShader: sideSticksVertex,
+                        side: THREE.DoubleSide,
+                        uniforms: Object.assign({ uTravelLength: { value: options.length }, uTime: { value: 0 } }, this.webgl.fogUniforms, options.distortion.uniforms)
+                    });
+                    material.onBeforeCompile = shader => {
+                        shader.vertexShader = shader.vertexShader.replace('#include <getDistortion_vertex>', options.distortion.getDistortion);
+                    };
+                    const mesh = new THREE.Mesh(instanced, material);
+                    mesh.frustumCulled = false;
+                    this.webgl.scene.add(mesh);
+                    this.mesh = mesh;
+                }
+                update(time) { this.mesh.material.uniforms.uTime.value = time; }
+            }
+
+            const roadBaseFragment = `
+                #define USE_FOG;
+                varying vec2 vUv; 
+                uniform vec3 uColor;
+                uniform float uTime;
+                #include <roadMarkings_vars>
+                ${THREE.ShaderChunk['fog_pars_fragment']}
+                void main() {
+                    vec2 uv = vUv;
+                    vec3 color = vec3(uColor);
+                    #include <roadMarkings_fragment>
+                    gl_FragColor = vec4(color, 1.);
+                    ${THREE.ShaderChunk['fog_fragment']}
+                }
+            `;
+            const islandFragment = roadBaseFragment.replace('#include <roadMarkings_fragment>', '').replace('#include <roadMarkings_vars>', '');
+            const roadMarkings_vars = `
+                uniform float uLanes; uniform vec3 uBrokenLinesColor; uniform vec3 uShoulderLinesColor;
+                uniform float uShoulderLinesWidthPercentage; uniform float uBrokenLinesWidthPercentage; uniform float uBrokenLinesLengthPercentage;
+                highp float random(vec2 co) {
+                    highp float a = 12.9898; highp float b = 78.233; highp float c = 43758.5453;
+                    highp float dt = dot(co.xy, vec2(a, b)); highp float sn = mod(dt, 3.14);
+                    return fract(sin(sn) * c);
+                }
+            `;
+            const roadMarkings_fragment = `
+                uv.y = mod(uv.y + uTime * 0.05, 1.);
+                float laneWidth = 1.0 / uLanes;
+                float brokenLineWidth = laneWidth * uBrokenLinesWidthPercentage;
+                float laneEmptySpace = 1. - uBrokenLinesLengthPercentage;
+                float brokenLines = step(1.0 - brokenLineWidth, fract(uv.x * 2.0)) * step(laneEmptySpace, fract(uv.y * 10.0));
+                float sideLines = step(1.0 - brokenLineWidth, fract((uv.x - laneWidth * (uLanes - 1.0)) * 2.0)) + step(brokenLineWidth, uv.x);
+                brokenLines = mix(brokenLines, sideLines, uv.x);
+            `;
+            const roadFragment = roadBaseFragment.replace('#include <roadMarkings_fragment>', roadMarkings_fragment).replace('#include <roadMarkings_vars>', roadMarkings_vars);
+            const roadVertex = `
+                #define USE_FOG;
+                uniform float uTime;
+                ${THREE.ShaderChunk['fog_pars_vertex']}
+                uniform float uTravelLength;
+                varying vec2 vUv; 
+                #include <getDistortion_vertex>
+                void main() {
+                    vec3 transformed = position.xyz;
+                    vec3 distortion = getDistortion((transformed.y + uTravelLength / 2.) / uTravelLength);
+                    transformed.x += distortion.x;
+                    transformed.z += distortion.y;
+                    transformed.y += -1. * distortion.z;  
+                    vec4 mvPosition = modelViewMatrix * vec4(transformed, 1.);
+                    gl_Position = projectionMatrix * mvPosition;
+                    vUv = uv;
+                    ${THREE.ShaderChunk['fog_vertex']}
+                }
+            `;
+
+            class Road {
+                constructor(webgl, options) { this.webgl = webgl; this.options = options; this.uTime = { value: 0 }; }
+                createPlane(side, width, isRoad) {
+                    const options = this.options;
+                    const geometry = new THREE.PlaneGeometry(isRoad ? options.roadWidth : options.islandWidth, options.length, 20, 100);
+                    let uniforms = { uTravelLength: { value: options.length }, uColor: { value: new THREE.Color(isRoad ? options.colors.roadColor : options.colors.islandColor) }, uTime: this.uTime };
+                    if (isRoad) {
+                        uniforms = Object.assign(uniforms, {
+                            uLanes: { value: options.lanesPerRoad }, uBrokenLinesColor: { value: new THREE.Color(options.colors.brokenLines) },
+                            uShoulderLinesColor: { value: new THREE.Color(options.colors.shoulderLines) }, uShoulderLinesWidthPercentage: { value: options.shoulderLinesWidthPercentage },
+                            uBrokenLinesLengthPercentage: { value: options.brokenLinesLengthPercentage }, uBrokenLinesWidthPercentage: { value: options.brokenLinesWidthPercentage }
+                        });
+                    }
+                    const material = new THREE.ShaderMaterial({
+                        fragmentShader: isRoad ? roadFragment : islandFragment, vertexShader: roadVertex, side: THREE.DoubleSide,
+                        uniforms: Object.assign(uniforms, this.webgl.fogUniforms, options.distortion.uniforms)
+                    });
+                    material.onBeforeCompile = shader => { shader.vertexShader = shader.vertexShader.replace('#include <getDistortion_vertex>', options.distortion.getDistortion); };
+                    const mesh = new THREE.Mesh(geometry, material);
+                    mesh.rotation.x = -Math.PI / 2;
+                    mesh.position.z = -options.length / 2;
+                    mesh.position.x += (this.options.islandWidth / 2 + options.roadWidth / 2) * side;
+                    this.webgl.scene.add(mesh);
+                    return mesh;
+                }
+                init() {
+                    this.leftRoadWay = this.createPlane(-1, this.options.roadWidth, true);
+                    this.rightRoadWay = this.createPlane(1, this.options.roadWidth, true);
+                    this.island = this.createPlane(0, this.options.islandWidth, false);
+                }
+                update(time) { this.uTime.value = time; }
+            }
+
+            function resizeRendererToDisplaySize(renderer, setSize) {
+                const canvas = renderer.domElement;
+                const width = canvas.clientWidth;
+                const height = canvas.clientHeight;
+                if (width <= 0 || height <= 0) return false;
+                const needResize = canvas.width !== width || canvas.height !== height;
+                if (needResize) setSize(width, height, false);
+                return needResize;
+            }
+
+            class App {
+                constructor(container, options = {}) {
+                    this.options = options;
+                    if (this.options.distortion == null) this.options.distortion = { uniforms: distortion_uniforms, getDistortion: distortion_vertex };
+                    this.container = container;
+                    this.hasValidSize = false;
+
+                    const initW = Math.max(1, container.offsetWidth);
+                    const initH = Math.max(1, container.offsetHeight);
+
+                    this.renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
+                    this.renderer.setSize(initW, initH, false);
+                    this.renderer.setPixelRatio(window.devicePixelRatio);
+                    this.composer = new EffectComposer(this.renderer);
+                    container.append(this.renderer.domElement);
+
+                    this.camera = new THREE.PerspectiveCamera(options.fov, initW / initH, 0.1, 10000);
+                    this.camera.position.set(0, 8, -5);
+                    this.scene = new THREE.Scene();
+                    this.scene.background = null;
+
+                    let fog = new THREE.Fog(options.colors.background, options.length * 0.2, options.length * 500);
+                    this.scene.fog = fog;
+                    this.fogUniforms = { fogColor: { value: fog.color }, fogNear: { value: fog.near }, fogFar: { value: fog.far } };
+                    this.clock = new THREE.Clock();
+
+                    this.road = new Road(this, options);
+                    this.leftCarLights = new CarLights(this, options, options.colors.leftCars, options.movingAwaySpeed, new THREE.Vector2(0, 1 - options.carLightsFade));
+                    this.rightCarLights = new CarLights(this, options, options.colors.rightCars, options.movingCloserSpeed, new THREE.Vector2(1, 0 + options.carLightsFade));
+                    this.leftSticks = new LightsSticks(this, options);
+
+                    this.fovTarget = options.fov;
+                    this.speedUpTarget = 0;
+                    this.speedUp = 0;
+                    this.timeOffset = 0;
+
+                    this.tick = this.tick.bind(this);
+                    this.init = this.init.bind(this);
+                    this.setSize = this.setSize.bind(this);
+                    this.onMouseDown = this.onMouseDown.bind(this);
+                    this.onMouseUp = this.onMouseUp.bind(this);
+                    this.onTouchStart = this.onTouchStart.bind(this);
+                    this.onTouchEnd = this.onTouchEnd.bind(this);
+
+                    this.onWindowResize = this.onWindowResize.bind(this);
+                    window.addEventListener('resize', this.onWindowResize);
+
+                    if (container.offsetWidth > 0 && container.offsetHeight > 0) this.hasValidSize = true;
+                    this.bindElement = document.body; // Use body since container has pointer-events: none
+                }
+
+                onWindowResize() {
+                    const width = this.container.offsetWidth, height = this.container.offsetHeight;
+                    if (width <= 0 || height <= 0) { this.hasValidSize = false; return; }
+                    this.renderer.setSize(width, height);
+                    this.camera.aspect = width / height;
+                    this.camera.updateProjectionMatrix();
+                    this.composer.setSize(width, height);
+                    this.hasValidSize = true;
+                }
+
+                initPasses() {
+                    this.renderPass = new RenderPass(this.scene, this.camera);
+                    this.bloomPass = new EffectPass(this.camera, new BloomEffect({ luminanceThreshold: 0.2, luminanceSmoothing: 0, resolutionScale: 1 }));
+                    const smaaPass = new EffectPass(this.camera, new SMAAEffect({ preset: SMAAPreset.MEDIUM, searchImage: SMAAEffect.searchImageDataURL, areaImage: SMAAEffect.areaImageDataURL }));
+                    this.renderPass.renderToScreen = false;
+                    this.bloomPass.renderToScreen = false;
+                    smaaPass.renderToScreen = true;
+                    this.composer.addPass(this.renderPass);
+                    this.composer.addPass(this.bloomPass);
+                    this.composer.addPass(smaaPass);
+                }
+
+                loadAssets() {
+                    return new Promise(resolve => {
+                        const manager = new THREE.LoadingManager(resolve);
+                        const searchImage = new Image(), areaImage = new Image();
+                        searchImage.addEventListener('load', function () { manager.itemEnd('smaa-search'); });
+                        areaImage.addEventListener('load', function () { manager.itemEnd('smaa-area'); });
+                        manager.itemStart('smaa-search'); manager.itemStart('smaa-area');
+                        searchImage.src = SMAAEffect.searchImageDataURL; areaImage.src = SMAAEffect.areaImageDataURL;
+                    });
+                }
+
+                init() {
+                    this.initPasses();
+                    const options = this.options;
+                    this.road.init();
+                    this.leftCarLights.init();
+                    this.leftCarLights.mesh.position.setX(-options.roadWidth / 2 - options.islandWidth / 2);
+                    this.rightCarLights.init();
+                    this.rightCarLights.mesh.position.setX(options.roadWidth / 2 + options.islandWidth / 2);
+                    this.leftSticks.init();
+                    this.leftSticks.mesh.position.setX(-(options.roadWidth + options.islandWidth / 2));
+
+                    this.bindElement.addEventListener('mousedown', this.onMouseDown);
+                    this.bindElement.addEventListener('mouseup', this.onMouseUp);
+                    this.bindElement.addEventListener('mouseout', this.onMouseUp);
+                    this.bindElement.addEventListener('touchstart', this.onTouchStart, { passive: true });
+                    this.bindElement.addEventListener('touchend', this.onTouchEnd, { passive: true });
+                    this.bindElement.addEventListener('touchcancel', this.onTouchEnd, { passive: true });
+
+                    this.tick();
+                }
+
+                onMouseDown(ev) { if (this.options.onSpeedUp) this.options.onSpeedUp(ev); this.fovTarget = this.options.fovSpeedUp; this.speedUpTarget = this.options.speedUp; }
+                onMouseUp(ev) { if (this.options.onSlowDown) this.options.onSlowDown(ev); this.fovTarget = this.options.fov; this.speedUpTarget = 0; }
+                onTouchStart(ev) { if (this.options.onSpeedUp) this.options.onSpeedUp(ev); this.fovTarget = this.options.fovSpeedUp; this.speedUpTarget = this.options.speedUp; }
+                onTouchEnd(ev) { if (this.options.onSlowDown) this.options.onSlowDown(ev); this.fovTarget = this.options.fov; this.speedUpTarget = 0; }
+
+                update(delta) {
+                    let lerpPercentage = Math.exp(-(-60 * Math.log2(1 - 0.1)) * delta);
+                    this.speedUp += lerp(this.speedUp, this.speedUpTarget, lerpPercentage, 0.00001);
+                    this.timeOffset += this.speedUp * delta;
+                    let time = this.clock.elapsedTime + this.timeOffset;
+
+                    this.rightCarLights.update(time);
+                    this.leftCarLights.update(time);
+                    this.leftSticks.update(time);
+                    this.road.update(time);
+
+                    let updateCamera = false;
+                    let fovChange = lerp(this.camera.fov, this.fovTarget, lerpPercentage);
+                    if (fovChange !== 0) { this.camera.fov += fovChange * delta * 6; updateCamera = true; }
+
+                    if (this.options.distortion.getJS) {
+                        const distortion = this.options.distortion.getJS(0.025, time);
+                        this.camera.lookAt(new THREE.Vector3(this.camera.position.x + distortion.x, this.camera.position.y + distortion.y, this.camera.position.z + distortion.z));
+                        updateCamera = true;
+                    }
+                    if (updateCamera) this.camera.updateProjectionMatrix();
+                }
+
+                render(delta) { this.composer.render(delta); }
+                setSize(width, height, updateStyles) {
+                    if (width <= 0 || height <= 0) { this.hasValidSize = false; return; }
+                    this.composer.setSize(width, height, updateStyles);
+                    this.hasValidSize = true;
+                }
+
+                tick() {
+                    if (!this.hasValidSize) {
+                        const w = this.container.offsetWidth, h = this.container.offsetHeight;
+                        if (w > 0 && h > 0) {
+                            this.renderer.setSize(w, h, false);
+                            this.camera.aspect = w / h; this.camera.updateProjectionMatrix();
+                            this.composer.setSize(w, h); this.hasValidSize = true;
+                        } else { requestAnimationFrame(this.tick); return; }
+                    }
+                    if (resizeRendererToDisplaySize(this.renderer, this.setSize)) {
+                        if (this.hasValidSize) {
+                            this.camera.aspect = this.renderer.domElement.clientWidth / this.renderer.domElement.clientHeight;
+                            this.camera.updateProjectionMatrix();
+                        }
+                    }
+                    if (this.hasValidSize) { const delta = this.clock.getDelta(); this.render(delta); this.update(delta); }
+                    requestAnimationFrame(this.tick);
+                }
+            }
+
+            // Hyperspeed config with integrated custom palette
+            const options = {
+                onSpeedUp: () => {},
+                onSlowDown: () => {},
+                distortion: distortions.turbulentDistortion,
+                length: 400, roadWidth: 10, islandWidth: 2, lanesPerRoad: 4,
+                fov: 90, fovSpeedUp: 150, speedUp: 2, carLightsFade: 0.4,
+                totalSideLightSticks: 20, lightPairsPerRoadWay: 40,
+                shoulderLinesWidthPercentage: 0.05, brokenLinesWidthPercentage: 0.1, brokenLinesLengthPercentage: 0.5,
+                lightStickWidth: [0.12, 0.5], lightStickHeight: [1.3, 1.7],
+                movingAwaySpeed: [60, 80], movingCloserSpeed: [-120, -160],
+                carLightsLength: [400 * 0.03, 400 * 0.2], carLightsRadius: [0.05, 0.14],
+                carWidthPercentage: [0.3, 0.5], carShiftX: [-0.8, 0.8], carFloorSeparation: [0, 5],
+                colors: {
+                    roadColor: 0x454040,      // Match Base Theme
+                    islandColor: 0x3b3636,    // Darker Gray Island
+                    background: 0x454040,     // Dark Gray Fog
+                    shoulderLines: 0x605B51,  // Medium Gray Box Matches
+                    brokenLines: 0x605B51,    // Medium Gray Box Matches
+                    leftCars: [0xD8D365, 0xE6F082, 0xD8D365], // Mustard & Lime Lights
+                    rightCars: [0xE6F082, 0xD8D365, 0xE6F082], 
+                    sticks: 0xD8D365          // Mustard Sticks
+                }
+            };
+
+            const app = new App(container, options);
+            app.loadAssets().then(() => app.init());
+        }
+
+        // Execute application logic sequentially
+        initApp();
+        initThreeJS();
+    </script>
+</body>
+</html>
