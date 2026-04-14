@@ -468,19 +468,18 @@
                             <g clip-path="url(#leafClipDash)">
                                 <line x1="50" y1="0" x2="50" y2="20" /><line x1="0" y1="20" x2="100" y2="20" /><line x1="50" y1="20" x2="50" y2="44" /><line x1="50" y1="32" x2="100" y2="32" /><line x1="50" y1="44" x2="100" y2="44" /><line x1="28" y1="20" x2="28" y2="44" /><line x1="0" y1="32" x2="28" y2="32" />
                                 <line x1="50" y1="100" x2="50" y2="80" /><line x1="0" y1="80" x2="100" y2="80" /><line x1="50" y1="80" x2="50" y2="56" /><line x1="0" y1="68" x2="50" y2="68" /><line x1="0" y1="56" x2="50" y2="56" /><line x1="72" y1="80" x2="72" y2="56" /><line x1="72" y1="68" x2="100" y2="68" />
-                            <line x1="72" y1="80" x2="72" y2="56" /><line x1="72" y1="68" x2="100" y2="68" />
-                        </g>
-                        <path d="M 50 3.5 C 90 20, 90 80, 50 96.5 C 10 80, 10 20, 50 3.5 Z" fill="none" stroke="currentColor" stroke-width="7" />
-                    </svg>
-                </div>
+                            </g>
+                            <path d="M 50 3.5 C 90 20, 90 80, 50 96.5 C 10 80, 10 20, 50 3.5 Z" fill="none" stroke="currentColor" stroke-width="7" />
+                        </svg>
+                    </div>
 
-                <div class="flex flex-col justify-center">
-                    <h1 class="text-2xl md:text-3xl text-white tracking-[0.15em] leading-tight uppercase font-['Saira_Stencil_One']">EXPFLOW</h1>
-                    <p class="text-[10px] md:text-[11px] text-[#D8D365] font-bold tracking-[0.25em] uppercase mt-0.5 ml-0.5 font-sans">Since 2026</p>
+                    <div class="flex flex-col justify-center">
+                        <h1 class="text-2xl md:text-3xl text-white tracking-[0.15em] leading-tight uppercase font-['Saira_Stencil_One']">EXPFLOW</h1>
+                        <p class="text-[10px] md:text-[11px] text-[#D8D365] font-bold tracking-[0.25em] uppercase mt-0.5 ml-0.5 font-sans">Since 2026</p>
+                    </div>
                 </div>
-            </div>
-            
-            <div class="flex items-center space-x-2 w-full sm:w-auto justify-end">
+                
+                <div class="flex items-center space-x-2 w-full sm:w-auto justify-end">
                     <!-- Home Button -->
                     <button onclick="showHomePage()" class="px-3 py-2 bg-[#D8D365]/20 hover:bg-[#D8D365]/30 rounded-full border border-[#D8D365]/20 text-xs font-bold text-[#D8D365] transition-all flex items-center shadow-sm" title="Go to Home Page">
                         <i class="fa-solid fa-house sm:mr-1.5"></i> <span class="hidden sm:inline">Home</span>
@@ -1515,7 +1514,11 @@
                 constructor(webgl, options) { this.webgl = webgl; this.options = options; this.uTime = { value: 0 }; }
                 createPlane(side, width, isRoad) {
                     const options = this.options;
-                    const geometry = new THREE.PlaneGeometry(isRoad ? options.roadWidth : options.islandWidth, options.length, 20, 100);
+                    // Lower geometry count heavily on mobile
+                    const segmentsW = isMobile ? 10 : 20;
+                    const segmentsL = isMobile ? 40 : 100;
+                    
+                    const geometry = new THREE.PlaneGeometry(isRoad ? options.roadWidth : options.islandWidth, options.length, segmentsW, segmentsL);
                     let uniforms = { uTravelLength: { value: options.length }, uColor: { value: new THREE.Color(isRoad ? options.colors.roadColor : options.colors.islandColor) }, uTime: this.uTime };
                     if (isRoad) {
                         uniforms = Object.assign(uniforms, {
@@ -1564,9 +1567,12 @@
                     const initW = Math.max(1, container.offsetWidth);
                     const initH = Math.max(1, container.offsetHeight);
 
-                    this.renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
+                    this.renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, powerPreference: "high-performance" });
                     this.renderer.setSize(initW, initH, false);
-                    this.renderer.setPixelRatio(window.devicePixelRatio);
+                    
+                    // PERFORMANCE FIX: Force cap pixel ratio to max 1.0 on mobile to prevent 6k renders in "Desktop Mode"
+                    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile ? 1 : 1.25));
+                    
                     this.composer = new EffectComposer(this.renderer);
                     container.append(this.renderer.domElement);
 
@@ -1617,18 +1623,35 @@
 
                 initPasses() {
                     this.renderPass = new RenderPass(this.scene, this.camera);
-                    this.bloomPass = new EffectPass(this.camera, new BloomEffect({ luminanceThreshold: 0.2, luminanceSmoothing: 0, resolutionScale: 1 }));
-                    const smaaPass = new EffectPass(this.camera, new SMAAEffect({ preset: SMAAPreset.MEDIUM, searchImage: SMAAEffect.searchImageDataURL, areaImage: SMAAEffect.areaImageDataURL }));
+                    
+                    // Lower bloom resolution strictly on mobile
+                    this.bloomPass = new EffectPass(this.camera, new BloomEffect({ luminanceThreshold: 0.2, luminanceSmoothing: 0, resolutionScale: isMobile ? 0.5 : 1 }));
+                    
                     this.renderPass.renderToScreen = false;
-                    this.bloomPass.renderToScreen = false;
-                    smaaPass.renderToScreen = true;
-                    this.composer.addPass(this.renderPass);
-                    this.composer.addPass(this.bloomPass);
-                    this.composer.addPass(smaaPass);
+                    
+                    // PERFORMANCE FIX: Only use SMAA (Anti-aliasing) post-processing on non-mobile devices. 
+                    // SMAA completely stalls mobile GPUs at high resolutions.
+                    if (!isMobile) {
+                        const smaaPass = new EffectPass(this.camera, new SMAAEffect({ preset: SMAAPreset.LOW, searchImage: SMAAEffect.searchImageDataURL, areaImage: SMAAEffect.areaImageDataURL }));
+                        this.bloomPass.renderToScreen = false;
+                        smaaPass.renderToScreen = true;
+                        this.composer.addPass(this.renderPass);
+                        this.composer.addPass(this.bloomPass);
+                        this.composer.addPass(smaaPass);
+                    } else {
+                        this.bloomPass.renderToScreen = true;
+                        this.composer.addPass(this.renderPass);
+                        this.composer.addPass(this.bloomPass);
+                    }
                 }
 
                 loadAssets() {
                     return new Promise(resolve => {
+                        // Skip loading SMAA assets on mobile if we aren't using the pass
+                        if (isMobile) {
+                            resolve();
+                            return;
+                        }
                         const manager = new THREE.LoadingManager(resolve);
                         const searchImage = new Image(), areaImage = new Image();
                         searchImage.addEventListener('load', function () { manager.itemEnd('smaa-search'); });
@@ -1721,7 +1744,9 @@
                 distortion: distortions.turbulentDistortion,
                 length: 400, roadWidth: 10, islandWidth: 2, lanesPerRoad: 4,
                 fov: 90, fovSpeedUp: 150, speedUp: 2, carLightsFade: 0.4,
-                totalSideLightSticks: 20, lightPairsPerRoadWay: 40,
+                // Lower instances on mobile
+                totalSideLightSticks: isMobile ? 10 : 20, 
+                lightPairsPerRoadWay: isMobile ? 15 : 40,
                 shoulderLinesWidthPercentage: 0.05, brokenLinesWidthPercentage: 0.1, brokenLinesLengthPercentage: 0.5,
                 lightStickWidth: [0.12, 0.5], lightStickHeight: [1.3, 1.7],
                 movingAwaySpeed: [60, 80], movingCloserSpeed: [-120, -160],
